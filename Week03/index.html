@@ -1,28 +1,116 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>My First MapLibre Map</title>
-  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div id="map"></div>
+<script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+<script>
+  const categoryColors = {
+    'butterfly': '#FF6347', // トマト色
+    'beetle': '#4682B4',    // スチールブルー
+    'other': '#32CD32'      // ライムグリーン
+  };
 
-  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-  <script>
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: 'https://demotiles.maplibre.org/style.json', // ベースマップ
-      center: [139.7671, 35.6812], // 東京駅 (経度, 緯度)
-      zoom: 1
+  const categories = ['butterfly', 'beetle', 'other'];
+
+  const classifyCategory = (feature) => {
+    const text = (feature.properties.name + ' ' + feature.properties.description).toLowerCase();
+    if (text.includes('蝶') || text.includes('アゲハ') || text.includes('ヒョウモン') || text.includes('チョウ')) {
+      return 'butterfly';
+    }
+    if (text.includes('カブトムシ') || text.includes('ゾウムシ') || text.includes('コウチュウ')) {
+      return 'beetle';
+    }
+    return 'other';
+  };
+
+  const loadGeoJsonAndInitMap = async () => {
+    const response = await fetch('insects.geojson');
+    const geojson = await response.json();
+
+    // カテゴリを分類して追加
+    geojson.features.forEach(f => {
+      f.properties.category = classifyCategory(f);
     });
 
-    // ポップアップ（吹き出し）を追加
-    const popup = new maplibregl.Popup({ offset: 25 })
-      .setLngLat([139.7671, 35.6812])
-      .setHTML("<h3>Hello world!</h3><p>Greetings from Japan!🇯🇵</p>")
-      .addTo(map);
-  </script>
-</body>
-</html>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://demotiles.maplibre.org/style.json',
+      center: [137.5, 35.0],
+      zoom: 5
+    });
+
+    map.on('load', () => {
+      map.addSource('insect-habitats', {
+        type: 'geojson',
+        data: geojson
+      });
+
+      categories.forEach(category => {
+        map.addLayer({
+          id: `insect-${category}`,
+          type: 'circle',
+          source: 'insect-habitats',
+          paint: {
+            'circle-radius': 8,
+            'circle-color': categoryColors[category],
+            'circle-opacity': 0.7,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#FFFFFF'
+          },
+          filter: ['==', ['get', 'category'], category]
+        });
+
+        // ポップアップ
+        map.on('click', `insect-${category}`, (e) => {
+          const f = e.features[0];
+          new maplibregl.Popup()
+            .setLngLat(f.geometry.coordinates)
+            .setHTML(`<h3>${f.properties.name}</h3><p>${f.properties.description}</p>`)
+            .addTo(map);
+        });
+
+        // ホバー処理
+        map.on('mouseenter', `insect-${category}`, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', `insect-${category}`, () => {
+          map.getCanvas().style.cursor = '';
+        });
+      });
+
+      // チェックボックス連携
+      document.getElementById('all-insects').addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        categories.forEach(cat => {
+          document.getElementById(cat).checked = checked;
+          map.setLayoutProperty(`insect-${cat}`, 'visibility', checked ? 'visible' : 'none');
+        });
+      });
+
+      categories.forEach(category => {
+        document.getElementById(category).addEventListener('change', (e) => {
+          const visible = e.target.checked ? 'visible' : 'none';
+          map.setLayoutProperty(`insect-${category}`, 'visibility', visible);
+
+          const allChecked = categories.every(cat => document.getElementById(cat).checked);
+          document.getElementById('all-insects').checked = allChecked;
+        });
+      });
+
+      // 検索処理
+      document.getElementById('search').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+
+        categories.forEach(category => {
+          const baseFilter = ['==', ['get', 'category'], category];
+          const searchFilter = ['any',
+            ['to-boolean', ['index-of', term, ['downcase', ['get', 'name']]]],
+            ['to-boolean', ['index-of', term, ['downcase', ['get', 'description']]]]
+          ];
+          const fullFilter = term === '' ? baseFilter : ['all', baseFilter, searchFilter];
+
+          map.setFilter(`insect-${category}`, fullFilter);
+        });
+      });
+    });
+  };
+
+  // 実行
+  loadGeoJsonAndInitMap();
+</script>

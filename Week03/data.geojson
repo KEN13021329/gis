@@ -1,0 +1,160 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [139.7671, 35.6812]
+      },
+      "properties": {
+        "name": "オオムラサキの生息地",
+        "description": "オオムラサキ（Sasakia charonda）は、日本固有の大型の蝶で、主に本州中部の山岳地帯に生息しています。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [135.7681, 35.0116]
+      },
+      "properties": {
+        "name": "アサギマダラの飛来地",
+        "description": "アサギマダラ（Parantica sita）は、長距離を移動する蝶で、特に奈良県の吉野山に多く飛来します。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [135.1955, 34.6937]
+      },
+      "properties": {
+        "name": "カブトムシの生息地",
+        "description": "カブトムシ（Trypoxylus dichotomus）は、夏の夜に街灯に集まることで知られ、大阪府内の公園や林縁に生息しています。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [137.7253, 35.1700]
+      },
+      "properties": {
+        "name": "クマバチの観察地",
+        "description": "クマバチ（Bombus hypocrita）は、春から初夏にかけて観察され、愛知県の花畑や庭園でよく見られます。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [139.6917, 35.6895]
+      },
+      "properties": {
+        "name": "ミツバチの生息地",
+        "description": "ミツバチ（Apis mellifera）は、都市部でも見られ、東京都内の公園や庭園で観察されます。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [135.1955, 34.6937]
+      },
+      "properties": {
+        "name": "シオカラトンボの生息地",
+        "description": "シオカラトンボ（Orthetrum albistylum）は、湿地や田んぼなどの水辺に生息し、日本全土で見られる一般的なトンボです。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [135.1955, 34.6937]
+      },
+      "properties": {
+        "name": "薔薇ゾウムシの生息地",
+        "description": "薔薇ゾウムシ（Rhynchites auratus）は、バラのつぼみに卵を産みつけ、花を食害することで知られています。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [139.7567, 35.7000]
+      },
+      "properties": {
+        "name": "ツマグロヒョウモンの生息地",
+        "description": "ツマグロヒョウモン（Argynnis paphia）は、北海道や本州の山地に生息し、花の蜜を吸うことで知られる蝶です。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [141.3469, 43.0642]
+      },
+      "properties": {
+        "name": "ササキチョウの生息地",
+        "description": "ササキチョウ（Pseudocopaeodes aurora）は、北海道のササ地帯に生息し、湿った草地でよく見られます。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [139.7704, 35.6897]
+      },
+      "properties": {
+        "name": "クロアゲハの生息地",
+        "description": "クロアゲハ（Papilio machaon）は、特に東京都の街中で見かけることがあり、広い範囲に生息しています。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138.7850, 35.3606]
+      },
+      "properties": {
+        "name": "アオスジアゲハの生息地",
+        "description": "アオスジアゲハ（Graphium sarpedon）は、東北地方や本州の山間部で観察される蝶です。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [136.9107, 35.1601]
+      },
+      "properties": {
+        "name": "ウスバキトンボの生息地",
+        "description": "ウスバキトンボ（Libellula quadrimaculata）は、清流や湿地で見られるトンボで、特に岐阜県に多く生息しています。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [137.7244, 35.0457]
+      },
+      "properties": {
+        "name": "ヤブ蚊の生息地",
+        "description": "ヤブ蚊（Culex pipiens）は、日本全土の湿地や庭園で見られます。特に夏季に多く出現します。"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [139.7655, 35.6561]
+      },
+      "properties": {
+        "name": "アリジゴクの生息地",
+        "description": "アリジゴク（Myrmecophilus yama）では、特に公園や草地の土中で見られます。"
+      }
+    }
+ 
+  ]
+}
