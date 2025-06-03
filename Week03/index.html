@@ -1,116 +1,139 @@
-<script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-<script>
-  const categoryColors = {
-    'butterfly': '#FF6347', // トマト色
-    'beetle': '#4682B4',    // スチールブルー
-    'other': '#32CD32'      // ライムグリーン
-  };
-
-  const categories = ['butterfly', 'beetle', 'other'];
-
-  const classifyCategory = (feature) => {
-    const text = (feature.properties.name + ' ' + feature.properties.description).toLowerCase();
-    if (text.includes('蝶') || text.includes('アゲハ') || text.includes('ヒョウモン') || text.includes('チョウ')) {
-      return 'butterfly';
+<<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>昆虫マップ（都道府県別）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #map { width: 100vw; height: 100vh; }
+    .maplibregl-popup img {
+      max-width: 100%;
+      margin-top: 0.5em;
+      border-radius: 6px;
     }
-    if (text.includes('カブトムシ') || text.includes('ゾウムシ') || text.includes('コウチュウ')) {
-      return 'beetle';
-    }
-    return 'other';
-  };
+  </style>
+</head>
+<body>
+  <div id="map"></div>
 
-  const loadGeoJsonAndInitMap = async () => {
-    const response = await fetch('insects.geojson');
-    const geojson = await response.json();
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <!-- PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-    // カテゴリを分類して追加
-    geojson.features.forEach(f => {
-      f.properties.category = classifyCategory(f);
-    });
+  <script>
+    async function loadMap() {
+      // ファイルを同時に読み込み
+      const [prefData, insectPoints, masterCSV] = await Promise.all([
+        fetch('japan.geojson').then(res => res.json()),
+        fetch('insect_points.geojson').then(res => res.json()),
+        fetch('insect_master.csv').then(res => res.text())
+      ]);
 
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: 'https://demotiles.maplibre.org/style.json',
-      center: [137.5, 35.0],
-      zoom: 5
-    });
+      // CSVをパース（ヘッダーあり）
+      const insectMaster = Papa.parse(masterCSV, {
+        header: true,
+        skipEmptyLines: true
+      }).data;
 
-    map.on('load', () => {
-      map.addSource('insect-habitats', {
-        type: 'geojson',
-        data: geojson
+      // 配列 → オブジェクトマップに変換（nameでキー）
+      const insectMasterMap = {};
+      insectMaster.forEach(item => {
+        insectMasterMap[item.name] = item;
       });
 
-      categories.forEach(category => {
+      // 昆虫ポイントのプロパティにマスター情報をマージ
+      insectPoints.features.forEach(f => {
+        const info = insectMasterMap[f.properties.name];
+        if (info) {
+          f.properties.description = info.description;
+          f.properties.category = info.category;
+          f.properties.image = info.image;
+        } else {
+          f.properties.description = "説明なし";
+          f.properties.category = "other";
+          f.properties.image = "";
+        }
+      });
+
+      // MapLibreの初期化
+      const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://demotiles.maplibre.org/style.json',
+        center: [137.5, 36.0],
+        zoom: 5
+      });
+
+      map.on('load', () => {
+        // 都道府県GeoJSONを追加
+        map.addSource('prefectures', { type: 'geojson', data: prefData });
         map.addLayer({
-          id: `insect-${category}`,
-          type: 'circle',
-          source: 'insect-habitats',
+          id: 'pref-layer',
+          type: 'fill',
+          source: 'prefectures',
           paint: {
-            'circle-radius': 8,
-            'circle-color': categoryColors[category],
-            'circle-opacity': 0.7,
-            'circle-stroke-width': 1,
-            'circle-stroke-color': '#FFFFFF'
-          },
-          filter: ['==', ['get', 'category'], category]
+            'fill-color': '#55a',
+            'fill-opacity': 0.3
+          }
         });
 
-        // ポップアップ
-        map.on('click', `insect-${category}`, (e) => {
-          const f = e.features[0];
+        // 昆虫ポイントGeoJSONを追加
+        map.addSource('insects', { type: 'geojson', data: insectPoints });
+        map.addLayer({
+          id: 'insects-layer',
+          type: 'circle',
+          source: 'insects',
+          paint: {
+            'circle-radius': 6,
+            'circle-color': [
+              'match',
+              ['get', 'category'],
+              'butterfly', '#ff69b4',
+              'beetle', '#8b4513',
+              '#808080'
+            ],
+            'circle-stroke-color': '#fff',
+            'circle-stroke-width': 1,
+            'circle-opacity': 0.85
+          },
+          filter: ['==', ['get', 'prefecture'], '']  // 初期は非表示
+        });
+
+        // 都道府県クリックで昆虫表示フィルタ
+        map.on('click', 'pref-layer', (e) => {
+          const pref = e.features[0].properties.nam_ja;
+          map.setFilter('insects-layer', ['==', ['get', 'prefecture'], pref]);
           new maplibregl.Popup()
-            .setLngLat(f.geometry.coordinates)
-            .setHTML(`<h3>${f.properties.name}</h3><p>${f.properties.description}</p>`)
+            .setLngLat(e.lngLat)
+            .setHTML(`<strong>${pref}</strong> の昆虫を表示中`)
             .addTo(map);
         });
 
-        // ホバー処理
-        map.on('mouseenter', `insect-${category}`, () => {
-          map.getCanvas().style.cursor = 'pointer';
+        // 昆虫ポイントクリックで詳細ポップアップ
+        map.on('click', 'insects-layer', (e) => {
+          const f = e.features[0].properties;
+          const imageTag = f.image ? `<img src="${f.image}" alt="${f.name}" />` : '';
+          new maplibregl.Popup()
+            .setLngLat(e.features[0].geometry.coordinates)
+            .setHTML(`
+              <h3>${f.name}</h3>
+              <p>${f.description}</p>
+              ${imageTag}
+            `)
+            .addTo(map);
         });
-        map.on('mouseleave', `insect-${category}`, () => {
-          map.getCanvas().style.cursor = '';
-        });
+
+        // カーソル変化
+        map.on('mouseenter', 'pref-layer', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'pref-layer', () => map.getCanvas().style.cursor = '');
+        map.on('mouseenter', 'insects-layer', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'insects-layer', () => map.getCanvas().style.cursor = '');
       });
+    }
 
-      // チェックボックス連携
-      document.getElementById('all-insects').addEventListener('change', (e) => {
-        const checked = e.target.checked;
-        categories.forEach(cat => {
-          document.getElementById(cat).checked = checked;
-          map.setLayoutProperty(`insect-${cat}`, 'visibility', checked ? 'visible' : 'none');
-        });
-      });
-
-      categories.forEach(category => {
-        document.getElementById(category).addEventListener('change', (e) => {
-          const visible = e.target.checked ? 'visible' : 'none';
-          map.setLayoutProperty(`insect-${category}`, 'visibility', visible);
-
-          const allChecked = categories.every(cat => document.getElementById(cat).checked);
-          document.getElementById('all-insects').checked = allChecked;
-        });
-      });
-
-      // 検索処理
-      document.getElementById('search').addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-
-        categories.forEach(category => {
-          const baseFilter = ['==', ['get', 'category'], category];
-          const searchFilter = ['any',
-            ['to-boolean', ['index-of', term, ['downcase', ['get', 'name']]]],
-            ['to-boolean', ['index-of', term, ['downcase', ['get', 'description']]]]
-          ];
-          const fullFilter = term === '' ? baseFilter : ['all', baseFilter, searchFilter];
-
-          map.setFilter(`insect-${category}`, fullFilter);
-        });
-      });
-    });
-  };
-
-  // 実行
-  loadGeoJsonAndInitMap();
-</script>
+    loadMap();
+  </script>
+</body>
+</html>
