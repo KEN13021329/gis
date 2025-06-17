@@ -1,52 +1,80 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>昆虫マップ（都道府県別）</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>昆虫マップ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #map { width: 100vw; height: 100vh; }
+    body { margin: 0; display: flex; font-family: sans-serif; }
+    #map { width: 70vw; height: 100vh; position: relative; z-index: 0; }
+    #sidebar {
+      width: 30vw;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 1em;
+      background: #f7f7f7;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+      z-index: 1;
+    }
+    .insect-card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 0.5em;
+      margin-bottom: 1em;
+      background: white;
+    }
+    .insect-card img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin-top: 0.5em;
+    }
+
+    .maplibregl-popup-content {
+      max-height: 200px;
+      overflow-y: auto;
+    }
     .maplibregl-popup img {
       max-width: 100%;
-      margin-top: 0.5em;
       border-radius: 6px;
+      margin-top: 0.5em;
+      display: block;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="sidebar"><p>都道府県をクリックすると昆虫が表示されます。</p></div>
 
-  <!-- MapLibre GL JS -->
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-  <!-- PapaParse -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    async function loadMap() {
-      // ファイルを同時に読み込み
+    function parseCSV(csvText) {
+      const lines = csvText.trim().split('\n');
+      const headers = lines[0].split(',');
+      const result = {};
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        const item = {};
+        headers.forEach((h, j) => {
+          item[h] = values[j];
+        });
+        result[item.name] = item;
+      }
+      return result;
+    }
+
+    const loadMap = async () => {
       const [prefData, insectPoints, masterCSV] = await Promise.all([
         fetch('japan.geojson').then(res => res.json()),
         fetch('insect_points.geojson').then(res => res.json()),
         fetch('insect_master.csv').then(res => res.text())
       ]);
 
-      // CSVをパース（ヘッダーあり）
-      const insectMaster = Papa.parse(masterCSV, {
-        header: true,
-        skipEmptyLines: true
-      }).data;
+      const insectMaster = parseCSV(masterCSV);
 
-      // 配列 → オブジェクトマップに変換（nameでキー）
-      const insectMasterMap = {};
-      insectMaster.forEach(item => {
-        insectMasterMap[item.name] = item;
-      });
-
-      // 昆虫ポイントのプロパティにマスター情報をマージ
       insectPoints.features.forEach(f => {
-        const info = insectMasterMap[f.properties.name];
+        const info = insectMaster[f.properties.name];
         if (info) {
           f.properties.description = info.description;
           f.properties.category = info.category;
@@ -58,7 +86,6 @@
         }
       });
 
-      // MapLibreの初期化
       const map = new maplibregl.Map({
         container: 'map',
         style: 'https://demotiles.maplibre.org/style.json',
@@ -67,7 +94,6 @@
       });
 
       map.on('load', () => {
-        // 都道府県GeoJSONを追加
         map.addSource('prefectures', { type: 'geojson', data: prefData });
         map.addLayer({
           id: 'pref-layer',
@@ -79,7 +105,6 @@
           }
         });
 
-        // 昆虫ポイントGeoJSONを追加
         map.addSource('insects', { type: 'geojson', data: insectPoints });
         map.addLayer({
           id: 'insects-layer',
@@ -98,20 +123,33 @@
             'circle-stroke-width': 1,
             'circle-opacity': 0.85
           },
-          filter: ['==', ['get', 'prefecture'], '']  // 初期は非表示
+          filter: ['==', ['get', 'prefecture'], '']
         });
 
-        // 都道府県クリックで昆虫表示フィルタ
         map.on('click', 'pref-layer', (e) => {
           const pref = e.features[0].properties.nam_ja;
           map.setFilter('insects-layer', ['==', ['get', 'prefecture'], pref]);
-          new maplibregl.Popup()
-            .setLngLat(e.lngLat)
-            .setHTML(`<strong>${pref}</strong> の昆虫を表示中`)
-            .addTo(map);
+
+          const insects = insectPoints.features.filter(f => f.properties.prefecture === pref);
+          const sidebar = document.getElementById('sidebar');
+          sidebar.innerHTML = `<h2>${pref} の昆虫一覧</h2>`;
+          if (insects.length === 0) {
+            sidebar.innerHTML += `<p>表示する昆虫がありません。</p>`;
+          } else {
+            insects.forEach(f => {
+              const p = f.properties;
+              const image = p.image ? `<img src="${p.image}" alt="${p.name}" />` : '';
+              sidebar.innerHTML += `
+                <div class="insect-card">
+                  <h3>${p.name}</h3>
+                  <p>${p.description}</p>
+                  ${image}
+                </div>
+              `;
+            });
+          }
         });
 
-        // 昆虫ポイントクリックで詳細ポップアップ
         map.on('click', 'insects-layer', (e) => {
           const f = e.features[0].properties;
           const imageTag = f.image ? `<img src="${f.image}" alt="${f.name}" />` : '';
@@ -125,13 +163,10 @@
             .addTo(map);
         });
 
-        // カーソル変化
         map.on('mouseenter', 'pref-layer', () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', 'pref-layer', () => map.getCanvas().style.cursor = '');
-        map.on('mouseenter', 'insects-layer', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'insects-layer', () => map.getCanvas().style.cursor = '');
       });
-    }
+    };
 
     loadMap();
   </script>
