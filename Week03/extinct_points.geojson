@@ -1,0 +1,61 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "ニホンカワウソ",
+        "prefecture": "和歌山県和歌山市友ヶ島"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [135.0035, 34.2783]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "ニホンオオカミ",
+        "prefecture": "奈良県吉野郡小川村鷲家口"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [136.0354,34.3626]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "トキ",
+        "prefecture": "新潟県佐渡島"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138.3667, 38.0167]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "リュウキュウカラスバト",
+        "prefecture": "沖縄県島尻郡南大東村"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [131.2314, 25.8331]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "　エゾオオカミ",
+        "prefecture": "北海道日高地方"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [142.2500, 42.3200]
+      }
+    }
+  ]
+}
+  

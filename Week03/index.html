@@ -2,12 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>昆虫マップ</title>
+  <title>絶滅動物マップ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     body { margin: 0; display: flex; font-family: sans-serif; }
-    #map { width: 70vw; height: 100vh; position: relative; z-index: 0; }
+    #map { width: 70vw; height: 100vh; }
     #sidebar {
       width: 30vw;
       height: 100vh;
@@ -15,85 +15,99 @@
       padding: 1em;
       background: #f7f7f7;
       box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
-      z-index: 1;
+      display: flex;
+      flex-direction: column;
     }
-    .insect-card {
+    #filter-container {
+      margin-bottom: 1em;
+    }
+    #animal-list {
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+    .animal-card {
       border: 1px solid #ccc;
       border-radius: 8px;
       padding: 0.5em;
       margin-bottom: 1em;
       background: white;
     }
-    .insect-card img {
+    .animal-card img {
       max-width: 100%;
       border-radius: 6px;
       margin-top: 0.5em;
     }
-
-    .maplibregl-popup-content {
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .maplibregl-popup img {
-      max-width: 100%;
-      border-radius: 6px;
-      margin-top: 0.5em;
+    label {
+      font-weight: bold;
       display: block;
+      margin-bottom: 0.5em;
+    }
+    select {
+      width: 100%;
+      padding: 0.3em;
+      font-size: 1em;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="sidebar"><p>都道府県をクリックすると昆虫が表示されます。</p></div>
+  <div id="sidebar">
+    <div id="filter-container">
+      <label for="animal-filter">動物名で絞り込み：</label>
+      <select id="animal-filter">
+        <option value="">-- 選択してください --</option>
+      </select>
+    </div>
+    <div id="animal-list">
+      <p>都道府県をクリックすると絶滅した動物が表示されます。</p>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-
   <script>
+    // CSVパース関数（単純版）
     function parseCSV(csvText) {
       const lines = csvText.trim().split('\n');
-      const headers = lines[0].split(',');
-      const result = {};
+      const headers = lines[0].split(',').map(h => h.trim());
+      const data = [];
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
-        const item = {};
+        const values = lines[i].split(',').map(v => v.trim());
+        const obj = {};
         headers.forEach((h, j) => {
-          item[h] = values[j];
+          obj[h] = values[j] || '';
         });
-        result[item.name] = item;
+        data.push(obj);
       }
-      return result;
+      return data;
     }
 
-    const loadMap = async () => {
-      const [prefData, insectPoints, masterCSV] = await Promise.all([
-        fetch('japan.geojson').then(res => res.json()),
-        fetch('insect_points.geojson').then(res => res.json()),
-        fetch('insect_master.csv').then(res => res.text())
+    async function loadMap() {
+      const [prefData, csvText, insectGeojson] = await Promise.all([
+        fetch('japan.geojson').then(r => r.json()),
+        fetch('animal_master.csv').then(r => r.text()),
+        fetch('extinct_points.geojson').then(r => r.json())
       ]);
-
-      const insectMaster = parseCSV(masterCSV);
-
-      insectPoints.features.forEach(f => {
-        const info = insectMaster[f.properties.name];
-        if (info) {
-          f.properties.description = info.description;
-          f.properties.category = info.category;
-          f.properties.image = info.image;
-        } else {
-          f.properties.description = "説明なし";
-          f.properties.category = "other";
-          f.properties.image = "";
-        }
-      });
+      const animals = parseCSV(csvText);
 
       const map = new maplibregl.Map({
         container: 'map',
-        style: 'https://demotiles.maplibre.org/style.json',
+        style: 'https://api.maptiler.com/maps/topo/style.json?key=21eWOViR9UPJFQPrvIDe',
         center: [137.5, 36.0],
         zoom: 5
       });
 
+      // 動物名ユニーク抽出＆フィルターセレクトにセット
+      const animalNames = [...new Set(animals.map(a => a.name))].sort();
+      const filterSelect = document.getElementById('animal-filter');
+      animalNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        filterSelect.appendChild(option);
+      });
+
       map.on('load', () => {
+        // --- 都道府県ポリゴンレイヤー ---
         map.addSource('prefectures', { type: 'geojson', data: prefData });
         map.addLayer({
           id: 'pref-layer',
@@ -105,68 +119,148 @@
           }
         });
 
-        map.addSource('insects', { type: 'geojson', data: insectPoints });
+        // --- 都道府県ハイライトレイヤー ---
+        map.addSource('highlighted-pref', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
         map.addLayer({
-          id: 'insects-layer',
-          type: 'circle',
-          source: 'insects',
+          id: 'pref-highlight',
+          type: 'line',
+          source: 'highlighted-pref',
           paint: {
-            'circle-radius': 6,
-            'circle-color': [
-              'match',
-              ['get', 'category'],
-              'butterfly', '#ff69b4',
-              'beetle', '#8b4513',
-              '#808080'
-            ],
-            'circle-stroke-color': '#fff',
-            'circle-stroke-width': 1,
-            'circle-opacity': 0.85
-          },
-          filter: ['==', ['get', 'prefecture'], '']
+            'line-color': '#00f',
+            'line-width': 3
+          }
         });
 
-        map.on('click', 'pref-layer', (e) => {
-          const pref = e.features[0].properties.nam_ja;
-          map.setFilter('insects-layer', ['==', ['get', 'prefecture'], pref]);
+        // --- 都道府県クリック処理 ---
+        map.on('click', 'pref-layer', e => {
+          const feature = e.features[0];
+          const pref = feature.properties.nam_ja.trim();
 
-          const insects = insectPoints.features.filter(f => f.properties.prefecture === pref);
-          const sidebar = document.getElementById('sidebar');
-          sidebar.innerHTML = `<h2>${pref} の昆虫一覧</h2>`;
-          if (insects.length === 0) {
-            sidebar.innerHTML += `<p>表示する昆虫がありません。</p>`;
+          // フィルターリセット（選択解除）
+          filterSelect.value = "";
+
+          // ハイライト更新
+          map.getSource('highlighted-pref').setData({
+            type: 'FeatureCollection',
+            features: [feature]
+          });
+
+          // CSVデータから該当都道府県の絶滅動物を抽出
+          const animalsInPref = animals.filter(a => a.prefecture.trim() === pref);
+
+          const animalList = document.getElementById('animal-list');
+          animalList.innerHTML = `<h2>${pref} の絶滅動物一覧</h2>`;
+
+          if (animalsInPref.length === 0) {
+            animalList.innerHTML += '<p>表示する絶滅動物がありません。</p>';
           } else {
-            insects.forEach(f => {
-              const p = f.properties;
-              const image = p.image ? `<img src="${p.image}" alt="${p.name}" />` : '';
-              sidebar.innerHTML += `
-                <div class="insect-card">
-                  <h3>${p.name}</h3>
-                  <p>${p.description}</p>
-                  ${image}
+            animalsInPref.forEach(a => {
+              const imgTag = a.image ? `<img src="${a.image}" alt="${a.name}">` : '';
+              animalList.innerHTML += `
+                <div class="animal-card">
+                  <h3>${a.name}</h3>
+                  <p>${a.description}</p>
+                  ${imgTag}
                 </div>
               `;
             });
           }
         });
 
-        map.on('click', 'insects-layer', (e) => {
-          const f = e.features[0].properties;
-          const imageTag = f.image ? `<img src="${f.image}" alt="${f.name}" />` : '';
+        // --- 昆虫ポイントレイヤー ---
+        map.addSource('insect-points', {
+          type: 'geojson',
+          data: insectGeojson
+        });
+        map.addLayer({
+          id: 'insect-layer',
+          type: 'circle',
+          source: 'insect-points',
+          paint: {
+            'circle-radius': 6,
+            'circle-color': '#e55',
+            'circle-stroke-color': '#fff',
+            'circle-stroke-width': 1
+          }
+        });
+
+        // ポイントクリック時にポップアップを表示
+        map.on('click', 'insect-layer', (e) => {
+          const coordinates = e.features[0].geometry.coordinates.slice();
+          const props = e.features[0].properties;
+
           new maplibregl.Popup()
-            .setLngLat(e.features[0].geometry.coordinates)
-            .setHTML(`
-              <h3>${f.name}</h3>
-              <p>${f.description}</p>
-              ${imageTag}
-            `)
+            .setLngLat(coordinates)
+            .setHTML(`<strong>${props.name}</strong><br>(${props.prefecture})`)
             .addTo(map);
         });
 
-        map.on('mouseenter', 'pref-layer', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'pref-layer', () => map.getCanvas().style.cursor = '');
+        map.on('mouseenter', 'insect-layer', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'insect-layer', () => map.getCanvas().style.cursor = '');
+
+        // --- 動物名フィルターの変更イベント ---
+        filterSelect.addEventListener('change', () => {
+          const selectedName = filterSelect.value;
+
+          if (!selectedName) {
+            // 選択なしの場合、ハイライトクリア＆サイドバー初期メッセージ
+            map.getSource('highlighted-pref').setData({
+              type: 'FeatureCollection',
+              features: []
+            });
+            document.getElementById('animal-list').innerHTML = '<p>都道府県をクリックすると絶滅した動物が表示されます。</p>';
+            return;
+          }
+
+          // 選択された動物名の都道府県一覧を取得（重複なし）
+          const matchedPrefectures = [...new Set(
+            animals
+              .filter(a => a.name === selectedName && a.prefecture)
+              .map(a => a.prefecture.trim())
+          )];
+
+          // 対応する都道府県GeoJSONのfeaturesを抽出
+          const highlightFeatures = prefData.features.filter(f =>
+            matchedPrefectures.includes(f.properties.nam_ja.trim())
+          );
+
+          // ハイライト更新
+          map.getSource('highlighted-pref').setData({
+            type: 'FeatureCollection',
+            features: highlightFeatures
+          });
+
+          // サイドバーに該当都道府県と動物情報を表示
+          const animalList = document.getElementById('animal-list');
+          animalList.innerHTML = `<h2>${selectedName} がいる都道府県</h2>`;
+
+          if (highlightFeatures.length === 0) {
+            animalList.innerHTML += '<p>該当する都道府県がありません。</p>';
+            return;
+          }
+
+          highlightFeatures.forEach(f => {
+            const prefName = f.properties.nam_ja.trim();
+            const animalsInPref = animals.filter(a => a.prefecture.trim() === prefName && a.name === selectedName);
+
+            animalList.innerHTML += `<h3>${prefName}</h3>`;
+            animalsInPref.forEach(a => {
+              const imgTag = a.image ? `<img src="${a.image}" alt="${a.name}">` : '';
+              animalList.innerHTML += `
+                <div class="animal-card">
+                  <h4>${a.name}</h4>
+                  <p>${a.description}</p>
+                  ${imgTag}
+                </div>
+              `;
+            });
+          });
+        });
       });
-    };
+    }
 
     loadMap();
   </script>
